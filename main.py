@@ -54,8 +54,16 @@ def create_app() -> gr.Blocks:
         with gr.Row():
             submit_btn = gr.Button("Submit", variant="primary", scale=0, size="lg")
         verse_output = gr.HTML(label="Verse Text")
-        new_testament_output = gr.Markdown(label="New Testament Cross References")
-        old_testament_output = gr.Markdown(label="Old Testament Cross References")
+        new_testament_output = gr.Textbox(
+            label="New Testament Cross References",
+            lines=2,
+            interactive=False,
+        )
+        old_testament_output = gr.Textbox(
+            label="Old Testament Cross References",
+            lines=2,
+            interactive=False,
+        )
 
         outputs = [verse_output, new_testament_output, old_testament_output]
         submit_btn.click(fn=lookup_verse, inputs=verse_input, outputs=outputs)
