@@ -8,17 +8,19 @@ from agents.bible_xref import get_cross_references
 from bible_api.esv_api import get_passage, get_passage_markup, get_passage_text
 
 
-def lookup_verse(reference: str) -> tuple[dict, str, str, str]:
-    """Return verse HTML markup, cross references, and study guide."""
+def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
+    """Return verse HTML markup, cross references, and study placeholder."""
     label = reference.strip() or "Verse Text"
-    empty_output = ("", "", "")
     if not re.match(r"^[A-Za-z]+ [0-9]+:[0-9]+$", reference):
         return (
             gr.update(
                 value="<p>Invalid reference format. Please use the format 'Book Chapter:Verse' (i.e. John 3:16)</p>",
                 label="Verse Text",
             ),
-            *empty_output,
+            "",
+            "",
+            "",
+            "",
         )
 
     try:
@@ -28,7 +30,10 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str]:
     except (requests.RequestException, ValueError) as exc:
         return (
             gr.update(value=f"<p>Could not fetch passage: {exc}</p>", label="Verse Text"),
-            *empty_output,
+            "",
+            "",
+            "",
+            "",
         )
 
     try:
@@ -41,22 +46,34 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str]:
     except Exception as exc:
         old_testament_refs = f"Could not fetch cross references: {exc}"
 
+    return (
+        gr.update(value=verse_markup, label=label),
+        new_testament_refs,
+        old_testament_refs,
+        "_Generating study guide..._",
+        target_verse_text,
+    )
+
+
+def generate_study(
+    reference: str,
+    target_verse_text: str,
+    old_testament_refs: str,
+    new_testament_refs: str,
+) -> str:
+    """Generate the textual study guide after cross references are shown."""
+    if not target_verse_text:
+        return ""
+
     try:
-        study_guide = generate_study_guide(
+        return generate_study_guide(
             reference,
             target_verse_text,
             old_testament_refs,
             new_testament_refs,
         )
     except Exception as exc:
-        study_guide = f"Could not generate study guide: {exc}"
-
-    return (
-        gr.update(value=verse_markup, label=label),
-        new_testament_refs,
-        old_testament_refs,
-        study_guide,
-    )
+        return f"Could not generate study guide: {exc}"
 
 
 def create_app() -> gr.Blocks:
@@ -82,10 +99,31 @@ def create_app() -> gr.Blocks:
             interactive=False,
         )
         study_output = gr.Markdown()
+        target_text_state = gr.State("")
 
-        outputs = [verse_output, new_testament_output, old_testament_output, study_output]
-        submit_btn.click(fn=lookup_verse, inputs=verse_input, outputs=outputs)
-        verse_input.submit(fn=lookup_verse, inputs=verse_input, outputs=outputs)
+        lookup_outputs = [
+            verse_output,
+            new_testament_output,
+            old_testament_output,
+            study_output,
+            target_text_state,
+        ]
+        study_inputs = [
+            verse_input,
+            target_text_state,
+            old_testament_output,
+            new_testament_output,
+        ]
+
+        submit_event = submit_btn.click(
+            fn=lookup_verse, inputs=verse_input, outputs=lookup_outputs
+        )
+        submit_event.then(fn=generate_study, inputs=study_inputs, outputs=study_output)
+
+        submit_event = verse_input.submit(
+            fn=lookup_verse, inputs=verse_input, outputs=lookup_outputs
+        )
+        submit_event.then(fn=generate_study, inputs=study_inputs, outputs=study_output)
 
     return app
 
