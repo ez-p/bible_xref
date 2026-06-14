@@ -3,30 +3,32 @@ import re
 import gradio as gr
 import requests
 
+from agents.bible_scholar import generate_study_guide
 from agents.bible_xref import get_cross_references
-from bible_api.esv_api import get_passage, get_passage_markup
+from bible_api.esv_api import get_passage, get_passage_markup, get_passage_text
 
 
-def lookup_verse(reference: str) -> tuple[dict, str, str]:
-    """Return verse HTML markup and New/Old Testament cross references."""
+def lookup_verse(reference: str) -> tuple[dict, str, str, str]:
+    """Return verse HTML markup, cross references, and study guide."""
     label = reference.strip() or "Verse Text"
-    empty_refs = ("", "")
+    empty_output = ("", "", "")
     if not re.match(r"^[A-Za-z]+ [0-9]+:[0-9]+$", reference):
         return (
             gr.update(
                 value="<p>Invalid reference format. Please use the format 'Book Chapter:Verse' (i.e. John 3:16)</p>",
                 label="Verse Text",
             ),
-            *empty_refs,
+            *empty_output,
         )
 
     try:
         passage = get_passage(reference)
         verse_markup = get_passage_markup(passage)
+        target_verse_text = get_passage_text(passage)
     except (requests.RequestException, ValueError) as exc:
         return (
             gr.update(value=f"<p>Could not fetch passage: {exc}</p>", label="Verse Text"),
-            *empty_refs,
+            *empty_output,
         )
 
     try:
@@ -39,7 +41,22 @@ def lookup_verse(reference: str) -> tuple[dict, str, str]:
     except Exception as exc:
         old_testament_refs = f"Could not fetch cross references: {exc}"
 
-    return gr.update(value=verse_markup, label=label), new_testament_refs, old_testament_refs
+    try:
+        study_guide = generate_study_guide(
+            reference,
+            target_verse_text,
+            old_testament_refs,
+            new_testament_refs,
+        )
+    except Exception as exc:
+        study_guide = f"Could not generate study guide: {exc}"
+
+    return (
+        gr.update(value=verse_markup, label=label),
+        new_testament_refs,
+        old_testament_refs,
+        study_guide,
+    )
 
 
 def create_app() -> gr.Blocks:
@@ -64,8 +81,9 @@ def create_app() -> gr.Blocks:
             lines=2,
             interactive=False,
         )
+        study_output = gr.Markdown()
 
-        outputs = [verse_output, new_testament_output, old_testament_output]
+        outputs = [verse_output, new_testament_output, old_testament_output, study_output]
         submit_btn.click(fn=lookup_verse, inputs=verse_input, outputs=outputs)
         verse_input.submit(fn=lookup_verse, inputs=verse_input, outputs=outputs)
 

@@ -1,3 +1,15 @@
+import os
+import re
+
+from dotenv import load_dotenv
+from openai import OpenAI
+
+from bible_api.esv_api import get_passage, get_passage_text
+
+load_dotenv()
+
+MODEL = "gpt-5.4"
+
 system_prompt = """
 You are an expert Biblical Scholar and Hermeneutics Professor specializing in the "Scripture Interprets Scripture"
 (Scriptura sui ipsius interpres) methodology. Your goal is to help users understand a specific Target Verse by using
@@ -64,3 +76,81 @@ following input data:
 Following the structure outlined in your system instructions, analyze these specific passages to demonstrate how they interpret,
 illuminate, and clarify the Target Verse. Do not invent external cross-references; rely strictly on the texts provided above.
 """
+
+OLD_TESTAMENT_LOOP = """{{ loop through old testament references }}
+- **Reference:** {{ ot_reference }}
+- **Text:** "{{ ot_text }}"
+{{ end loop }}"""
+
+NEW_TESTAMENT_LOOP = """{{ loop through new testament references }}
+- **Reference:** {{ nt_reference }}
+- **Text:** "{{ nt_text }}"
+{{ end loop }}"""
+
+
+def _parse_references(references: str) -> list[str]:
+    return [reference.strip() for reference in references.split(",") if reference.strip()]
+
+
+def _fetch_reference_texts(references: str) -> list[tuple[str, str]]:
+    return [(reference, get_passage_text(get_passage(reference))) for reference in _parse_references(references)]
+
+
+def _format_reference_block(reference_texts: list[tuple[str, str]]) -> str:
+    return "\n".join(
+        f'- **Reference:** {reference}\n- **Text:** "{text}"'
+        for reference, text in reference_texts
+    )
+
+
+def _build_user_message(
+    target_reference: str,
+    target_verse_text: str,
+    old_testament_references: str,
+    new_testament_references: str,
+) -> str:
+    message = user_prompt.replace("{{ target_verse_reference }}", target_reference)
+    message = message.replace("{{ target_verse_text }}", target_verse_text)
+    message = message.replace(
+        OLD_TESTAMENT_LOOP,
+        _format_reference_block(_fetch_reference_texts(old_testament_references)),
+    )
+    message = message.replace(
+        NEW_TESTAMENT_LOOP,
+        _format_reference_block(_fetch_reference_texts(new_testament_references)),
+    )
+    return message
+
+
+def generate_study_guide(
+    target_reference: str,
+    target_verse_text: str,
+    old_testament_references: str,
+    new_testament_references: str,
+) -> str:
+    """Generate a textual study guide from the target verse and cross references."""
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY is not set")
+
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": _build_user_message(
+                    target_reference,
+                    target_verse_text,
+                    old_testament_references,
+                    new_testament_references,
+                ),
+            },
+        ],
+    )
+
+    content = response.choices[0].message.content
+    if not content:
+        raise ValueError("OpenAI returned an empty response")
+
+    return content.strip()

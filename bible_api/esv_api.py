@@ -1,4 +1,6 @@
 import os
+import re
+from html import unescape
 from typing import Any
 
 import requests
@@ -36,3 +38,9 @@ def get_passage(reference: str) -> dict[str, Any]:
 def get_passage_markup(passage: dict[str, Any]) -> str:
     """Extract the HTML markup from an ESV API passage response."""
     return "\n".join(passage.get("passages", []))
+
+
+def get_passage_text(passage: dict[str, Any]) -> str:
+    """Extract plain text from an ESV API passage response."""
+    text = re.sub(r"<[^>]+>", " ", get_passage_markup(passage))
+    return re.sub(r"\s+", " ", unescape(text)).strip()
