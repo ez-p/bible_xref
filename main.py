@@ -25,7 +25,7 @@ def lookup_verse(reference: str) -> tuple[dict, str]:
 
 def create_app() -> gr.Blocks:
     with gr.Blocks(title="Bible XRef") as app:
-        gr.Markdown("# Bible Verse Lookup")
+        gr.Markdown("# Bible Verse Contextual Study Guide")
 
         verse_input = gr.Textbox(
             label="Bible Verse",
