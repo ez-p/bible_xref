@@ -1,4 +1,6 @@
 import re
+import threading
+import time
 
 import gradio as gr
 import requests
@@ -6,6 +8,20 @@ import requests
 from agents.bible_scholar import generate_study_guide
 from agents.bible_xref import get_cross_references
 from bible_api.esv_api import get_passage, get_passage_markup, get_passage_text
+
+SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+LOADING_MESSAGES = (
+    "Gathering passage texts",
+    "Analyzing cross references",
+    "Consulting the Biblical Scholar",
+    "Preparing your study guide",
+)
+
+
+def loading_status(frame_index: int) -> str:
+    spinner = SPINNER_FRAMES[frame_index % len(SPINNER_FRAMES)]
+    message = LOADING_MESSAGES[(frame_index // 2) % len(LOADING_MESSAGES)]
+    return f"### {spinner} {message}\n\n*This may take a minute...*"
 
 
 def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
@@ -50,7 +66,7 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
         gr.update(value=verse_markup, label=label),
         new_testament_refs,
         old_testament_refs,
-        "_Generating study guide..._",
+        loading_status(0),
         target_verse_text,
     )
 
@@ -60,20 +76,40 @@ def generate_study(
     target_verse_text: str,
     old_testament_refs: str,
     new_testament_refs: str,
-) -> str:
-    """Generate the textual study guide after cross references are shown."""
+):
+    """Generate the textual study guide with animated loading feedback."""
     if not target_verse_text:
-        return ""
+        yield ""
+        return
 
-    try:
-        return generate_study_guide(
-            reference,
-            target_verse_text,
-            old_testament_refs,
-            new_testament_refs,
-        )
-    except Exception as exc:
-        return f"Could not generate study guide: {exc}"
+    result: dict[str, str | None] = {"value": None, "error": None}
+
+    def run() -> None:
+        try:
+            result["value"] = generate_study_guide(
+                reference,
+                target_verse_text,
+                old_testament_refs,
+                new_testament_refs,
+            )
+        except Exception as exc:
+            result["error"] = str(exc)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+
+    frame = 0
+    while thread.is_alive():
+        yield loading_status(frame)
+        frame += 1
+        time.sleep(0.4)
+
+    thread.join()
+
+    if result["error"]:
+        yield f"Could not generate study guide: {result['error']}"
+    else:
+        yield result["value"] or ""
 
 
 def create_app() -> gr.Blocks:
