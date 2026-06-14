@@ -27,7 +27,7 @@ def loading_status(frame_index: int) -> str:
 def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
     """Return verse HTML markup, cross references, and study placeholder."""
     label = reference.strip() or "Verse Text"
-    if not re.match(r"^[A-Za-z]+ [0-9]+:[0-9]+$", reference):
+    if not re.match(r"^(?:[0-9]+\s+)?[A-Za-z]+ [0-9]+:[0-9]+$", reference):
         return (
             gr.update(
                 value="<p>Invalid reference format. Please use the format 'Book Chapter:Verse' (i.e. John 3:16)</p>",
