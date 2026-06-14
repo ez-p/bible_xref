@@ -11,7 +11,7 @@ def lookup_verse(reference: str) -> tuple[dict, str]:
     if not re.match(r"^[A-Za-z]+ [0-9]+:[0-9]+$", reference):
         return (
             gr.update(
-                value="Invalid reference format. Please use the format 'Book Chapter:Verse'",
+                value="Invalid reference format. Please use the format 'Book Chapter:Verse' (i.e. John 3:16)",
                 label="Verse Text",
             ),
             "",
@@ -32,7 +32,8 @@ def create_app() -> gr.Blocks:
             placeholder="e.g. John 3:16",
             lines=1,
         )
-        submit_btn = gr.Button("Submit", variant="primary")
+        with gr.Row():
+            submit_btn = gr.Button("Submit", variant="primary", scale=0, size="lg")
         verse_output = gr.Textbox(
             label="Verse Text",
             lines=10,
