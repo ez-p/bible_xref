@@ -22,6 +22,7 @@ def get_passage(reference: str) -> dict[str, Any]:
     if not token:
         raise ValueError("ESV_API_TOKEN is not set")
 
+    # curl -H 'Authorization: Token YOUR_API_KEY' 'https://api.esv.org/v3/passage/html/?q=John+11:35'
     response = requests.get(
         ESV_PASSAGE_URL,
         params={"q": reference.strip()},
