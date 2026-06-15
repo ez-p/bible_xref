@@ -8,3 +8,5 @@ You will need to add a top-level .env file with the following tokens:
 
 ESV_API_TOKEN=<api.esv.org token>
 OPENAI_API_KEY=<OpenAI SDK token>
+
+Example Application:  https://huggingface.co/spaces/paulpowell/bible_xref
