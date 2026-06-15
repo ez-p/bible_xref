@@ -123,6 +123,8 @@ def generate_study(
 def create_app() -> gr.Blocks:
     with gr.Blocks(title="Bible XRef") as app:
         gr.Markdown("# Bible Verse Contextual Study Guide")
+        gr.Markdown("""Enter a Bible verse to generate a contextual study guide based on the your reference Bible verse 
+                        and Old and New Testament cross references.""")
 
         verse_input = gr.Textbox(
             label="Bible Verse",
