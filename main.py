@@ -25,7 +25,7 @@ def loading_status(frame_index: int) -> str:
 
 
 def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
-    """Return verse HTML markup, cross references, and study placeholder."""
+    """Fetch and display the target verse."""
     label = reference.strip() or "Verse Text"
     if not re.match(r"^(?:[0-9]+\s+)?[A-Za-z]+ [0-9]+:[0-9]+$", reference):
         return (
@@ -52,6 +52,20 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
             "",
         )
 
+    return (
+        gr.update(value=verse_markup, label=label),
+        "Fetching cross references...",
+        "Fetching cross references...",
+        "",
+        target_verse_text,
+    )
+
+
+def lookup_cross_references(reference: str, target_verse_text: str) -> tuple[str, str, str]:
+    """Fetch and display New and Old Testament cross references."""
+    if not target_verse_text:
+        return "", "", ""
+
     try:
         new_testament_refs = get_cross_references(reference, "New Testament")
     except Exception as exc:
@@ -62,13 +76,7 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
     except Exception as exc:
         old_testament_refs = f"Could not fetch cross references: {exc}"
 
-    return (
-        gr.update(value=verse_markup, label=label),
-        new_testament_refs,
-        old_testament_refs,
-        loading_status(0),
-        target_verse_text,
-    )
+    return new_testament_refs, old_testament_refs, loading_status(0)
 
 
 def generate_study(
@@ -144,6 +152,11 @@ def create_app() -> gr.Blocks:
             study_output,
             target_text_state,
         ]
+        cross_ref_outputs = [
+            new_testament_output,
+            old_testament_output,
+            study_output,
+        ]
         study_inputs = [
             verse_input,
             target_text_state,
@@ -151,15 +164,23 @@ def create_app() -> gr.Blocks:
             new_testament_output,
         ]
 
+        def wire_submit(event):
+            event = event.then(
+                fn=lookup_cross_references,
+                inputs=[verse_input, target_text_state],
+                outputs=cross_ref_outputs,
+            )
+            return event.then(fn=generate_study, inputs=study_inputs, outputs=study_output)
+
         submit_event = submit_btn.click(
             fn=lookup_verse, inputs=verse_input, outputs=lookup_outputs
         )
-        submit_event.then(fn=generate_study, inputs=study_inputs, outputs=study_output)
+        wire_submit(submit_event)
 
         submit_event = verse_input.submit(
             fn=lookup_verse, inputs=verse_input, outputs=lookup_outputs
         )
-        submit_event.then(fn=generate_study, inputs=study_inputs, outputs=study_output)
+        wire_submit(submit_event)
 
     return app
 
