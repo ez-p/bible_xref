@@ -5,7 +5,13 @@ import time
 import gradio as gr
 import requests
 
-from agents.bible_scholar import DEFAULT_MODEL, MODEL_OPTIONS, generate_study_guide
+from agents.bible_scholar import (
+    DEFAULT_MODEL,
+    MODEL_OPTIONS,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODELS,
+    generate_study_guide,
+)
 from agents.bible_xref import get_cross_references
 from bible_api.esv_api import get_passage, get_passage_markup, get_passage_text
 
@@ -144,11 +150,17 @@ def create_app() -> gr.Blocks:
                     placeholder="e.g. What does this verse teach about God's love?",
                     lines=2,
                 )
-            model_input = gr.Dropdown(
-                label="LLM Model",
-                choices=MODEL_OPTIONS,
-                value=DEFAULT_MODEL,
-            )
+            with gr.Column():
+                model_input = gr.Dropdown(
+                    label="LLM Model",
+                    choices=MODEL_OPTIONS,
+                    value=DEFAULT_MODEL,
+                )
+                ollama_models = "\n".join(f"- `{name}`" for name in OLLAMA_MODELS)
+                gr.Markdown(
+                    f"**Ollama models** require Ollama running locally at `{OLLAMA_BASE_URL}`:\n\n"
+                    f"{ollama_models}"
+                )
         with gr.Row():
             submit_btn = gr.Button("Submit", variant="primary", scale=0, size="lg")
         verse_output = gr.HTML(label="Verse Text")
