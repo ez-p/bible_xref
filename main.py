@@ -61,18 +61,20 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
     )
 
 
-def lookup_cross_references(reference: str, target_verse_text: str) -> tuple[str, str, str]:
+def lookup_cross_references(
+    reference: str, target_verse_text: str, model: str
+) -> tuple[str, str, str]:
     """Fetch and display New and Old Testament cross references."""
     if not target_verse_text:
         return "", "", ""
 
     try:
-        new_testament_refs = get_cross_references(reference, "New Testament")
+        new_testament_refs = get_cross_references(reference, "New Testament", model)
     except Exception as exc:
         new_testament_refs = f"Could not fetch cross references: {exc}"
 
     try:
-        old_testament_refs = get_cross_references(reference, "Old Testament")
+        old_testament_refs = get_cross_references(reference, "Old Testament", model)
     except Exception as exc:
         old_testament_refs = f"Could not fetch cross references: {exc}"
 
@@ -187,7 +189,7 @@ def create_app() -> gr.Blocks:
         def wire_submit(event):
             event = event.then(
                 fn=lookup_cross_references,
-                inputs=[verse_input, target_text_state],
+                inputs=[verse_input, target_text_state, model_input],
                 outputs=cross_ref_outputs,
             )
             return event.then(fn=generate_study, inputs=study_inputs, outputs=study_output)
