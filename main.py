@@ -84,6 +84,7 @@ def generate_study(
     target_verse_text: str,
     old_testament_refs: str,
     new_testament_refs: str,
+    user_question: str,
 ):
     """Generate the textual study guide with animated loading feedback."""
     if not target_verse_text:
@@ -99,6 +100,7 @@ def generate_study(
                 target_verse_text,
                 old_testament_refs,
                 new_testament_refs,
+                user_question,
             )
         except Exception as exc:
             result["error"] = str(exc)
@@ -130,6 +132,11 @@ def create_app() -> gr.Blocks:
             label="Bible Verse",
             placeholder="e.g. John 3:16",
             lines=1,
+        )
+        question_input = gr.Textbox(
+            label="Study Question (optional)",
+            placeholder="e.g. What does this verse teach about God's love?",
+            lines=2,
         )
         with gr.Row():
             submit_btn = gr.Button("Submit", variant="primary", scale=0, size="lg")
@@ -164,6 +171,7 @@ def create_app() -> gr.Blocks:
             target_text_state,
             old_testament_output,
             new_testament_output,
+            question_input,
         ]
 
         def wire_submit(event):

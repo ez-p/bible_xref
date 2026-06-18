@@ -73,6 +73,8 @@ following input data:
 - **Text:** "{{ nt_text }}"
 {{ end loop }}
 
+{{ user_question_context }}
+
 Following the structure outlined in your system instructions, analyze these specific passages to demonstrate how they interpret,
 illuminate, and clarify the Target Verse. Do not invent external cross-references; rely strictly on the texts provided above.
 """
@@ -103,11 +105,23 @@ def _format_reference_block(reference_texts: list[tuple[str, str]]) -> str:
     )
 
 
+def _format_user_question_context(user_question: str | None) -> str:
+    question = (user_question or "").strip()
+    if not question:
+        return ""
+    return f"""### ADDITIONAL USER CONTEXT:
+- **Question:** {question}
+
+Please incorporate this question as additional context when preparing the study guide.
+"""
+
+
 def _build_user_message(
     target_reference: str,
     target_verse_text: str,
     old_testament_references: str,
     new_testament_references: str,
+    user_question: str | None = None,
 ) -> str:
     message = user_prompt.replace("{{ target_verse_reference }}", target_reference)
     message = message.replace("{{ target_verse_text }}", target_verse_text)
@@ -119,6 +133,10 @@ def _build_user_message(
         NEW_TESTAMENT_LOOP,
         _format_reference_block(_fetch_reference_texts(new_testament_references)),
     )
+    message = message.replace(
+        "{{ user_question_context }}",
+        _format_user_question_context(user_question),
+    )
     return message
 
 
@@ -127,6 +145,7 @@ def generate_study_guide(
     target_verse_text: str,
     old_testament_references: str,
     new_testament_references: str,
+    user_question: str | None = None,
 ) -> str:
     """Generate a textual study guide from the target verse and cross references."""
     if not os.environ.get("OPENAI_API_KEY"):
@@ -144,6 +163,7 @@ def generate_study_guide(
                     target_verse_text,
                     old_testament_references,
                     new_testament_references,
+                    user_question,
                 ),
             },
         ],
