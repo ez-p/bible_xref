@@ -1,5 +1,4 @@
 import os
-import re
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -8,7 +7,26 @@ from bible_api.esv_api import get_passage, get_passage_text
 
 load_dotenv()
 
-MODEL = "gpt-5.4"
+OLLAMA_BASE_URL = "http://localhost:11434/v1"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+MODEL_OPTIONS = [
+    "gpt-5.4",
+    "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "deepseek-r1",
+    "llama3.2",
+    "gpt-oss",
+]
+DEFAULT_MODEL = "gpt-5.4"
+
+GEMINI_MODELS = {"gemini-2.5-flash", "gemini-3.5-flash"}
+
+OLLAMA_MODELS = {
+    "deepseek-r1": "deepseek-r1:1.5b",
+    "llama3.2": "llama3.2:latest",
+    "gpt-oss": "gpt-oss:latest",
+}
 
 system_prompt = """
 You are an expert Biblical Scholar and Hermeneutics Professor specializing in the "Scripture Interprets Scripture"
@@ -75,8 +93,9 @@ following input data:
 
 {{ user_question_context }}
 
-Following the structure outlined in your system instructions, analyze these specific passages to demonstrate how they interpret,
-illuminate, and clarify the Target Verse. Do not invent external cross-references; rely strictly on the texts provided above.
+Following the structure outlined in your system instructions and the user question context, analyze these specific passages to
+demonstrate how they interpret, illuminate, and clarify the Target Verse. Do not invent external cross-references; rely strictly
+on the texts provided above.
 """
 
 OLD_TESTAMENT_LOOP = """{{ loop through old testament references }}
@@ -140,20 +159,37 @@ def _build_user_message(
     return message
 
 
+def _create_client(model: str) -> tuple[OpenAI, str]:
+    if model == "gpt-5.4":
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY is not set")
+        return OpenAI(api_key=api_key), model
+
+    if model in GEMINI_MODELS:
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY is not set")
+        return OpenAI(api_key=api_key, base_url=GEMINI_BASE_URL), model
+
+    if model in OLLAMA_MODELS:
+        return OpenAI(api_key="ollama", base_url=OLLAMA_BASE_URL), OLLAMA_MODELS[model]
+
+    raise ValueError(f"Unsupported model: {model}")
+
+
 def generate_study_guide(
     target_reference: str,
     target_verse_text: str,
     old_testament_references: str,
     new_testament_references: str,
     user_question: str | None = None,
+    model: str = DEFAULT_MODEL,
 ) -> str:
     """Generate a textual study guide from the target verse and cross references."""
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY is not set")
-
-    client = OpenAI()
+    client, model_name = _create_client(model)
     response = client.chat.completions.create(
-        model=MODEL,
+        model=model_name,
         messages=[
             {"role": "system", "content": system_prompt},
             {

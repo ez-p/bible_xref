@@ -5,7 +5,7 @@ import time
 import gradio as gr
 import requests
 
-from agents.bible_scholar import generate_study_guide
+from agents.bible_scholar import DEFAULT_MODEL, MODEL_OPTIONS, generate_study_guide
 from agents.bible_xref import get_cross_references
 from bible_api.esv_api import get_passage, get_passage_markup, get_passage_text
 
@@ -85,6 +85,7 @@ def generate_study(
     old_testament_refs: str,
     new_testament_refs: str,
     user_question: str,
+    model: str,
 ):
     """Generate the textual study guide with animated loading feedback."""
     if not target_verse_text:
@@ -101,6 +102,7 @@ def generate_study(
                 old_testament_refs,
                 new_testament_refs,
                 user_question,
+                model,
             )
         except Exception as exc:
             result["error"] = str(exc)
@@ -128,16 +130,23 @@ def create_app() -> gr.Blocks:
         gr.Markdown("""Enter a Bible verse to generate a contextual study guide based on the your reference Bible verse 
                         and Old and New Testament cross references.""")
 
-        verse_input = gr.Textbox(
-            label="Bible Verse",
-            placeholder="e.g. John 3:16",
-            lines=1,
-        )
-        question_input = gr.Textbox(
-            label="Study Question (optional)",
-            placeholder="e.g. What does this verse teach about God's love?",
-            lines=2,
-        )
+        with gr.Row():
+            with gr.Column():
+                verse_input = gr.Textbox(
+                    label="Bible Verse",
+                    placeholder="e.g. John 3:16",
+                    lines=1,
+                )
+                question_input = gr.Textbox(
+                    label="Study Question (optional)",
+                    placeholder="e.g. What does this verse teach about God's love?",
+                    lines=2,
+                )
+            model_input = gr.Dropdown(
+                label="LLM Model",
+                choices=MODEL_OPTIONS,
+                value=DEFAULT_MODEL,
+            )
         with gr.Row():
             submit_btn = gr.Button("Submit", variant="primary", scale=0, size="lg")
         verse_output = gr.HTML(label="Verse Text")
@@ -172,6 +181,7 @@ def create_app() -> gr.Blocks:
             old_testament_output,
             new_testament_output,
             question_input,
+            model_input,
         ]
 
         def wire_submit(event):
