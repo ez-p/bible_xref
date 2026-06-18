@@ -158,7 +158,7 @@ def create_app() -> gr.Blocks:
                 )
                 ollama_models = "\n".join(f"- `{name}`" for name in OLLAMA_MODELS)
                 gr.Markdown(
-                    f"**Ollama models** require Ollama running locally at `{OLLAMA_BASE_URL}`:\n\n"
+                    f"Ollama models require Ollama running locally.\n\n"
                     f"{ollama_models}"
                 )
         with gr.Row():
