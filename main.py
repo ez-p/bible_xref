@@ -135,8 +135,8 @@ def generate_study(
 def create_app() -> gr.Blocks:
     with gr.Blocks(title="Bible XRef") as app:
         gr.Markdown("# Bible Verse Contextual Study Guide")
-        gr.Markdown("""Enter a Bible verse to generate a contextual study guide based on the your reference Bible verse 
-                        and Old and New Testament cross references.""")
+        gr.Markdown("""Enter a Bible verse to generate a contextual study guide.\n\nThe study guide will automatically cross reference several Old and New Testament verses 
+                       to provide a comprehensive study of the input verse.\n\nYou can also provide an optional study question to focus the study guide on a specific topic.""")
 
         with gr.Row():
             with gr.Column():
