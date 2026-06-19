@@ -10,9 +10,11 @@ load_dotenv()
 
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1/"
 
 MODEL_OPTIONS = [
     "gpt-5.4",
+    "claude-sonnet-4-6",
     "gemini-2.5-flash",
     "gemini-3.5-flash",
     "deepseek-r1",
@@ -22,6 +24,7 @@ MODEL_OPTIONS = [
 DEFAULT_MODEL = "gpt-5.4"
 
 GEMINI_MODELS = {"gemini-2.5-flash", "gemini-3.5-flash"}
+CLAUDE_MODELS = {"claude-sonnet-4-6"}
 
 OLLAMA_MODELS = {
     "deepseek-r1": "deepseek-r1:1.5b",
@@ -172,6 +175,12 @@ def _create_client(model: str) -> tuple[OpenAI, str]:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY is not set")
         return OpenAI(api_key=api_key, base_url=GEMINI_BASE_URL), model
+
+    if model in CLAUDE_MODELS:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY is not set")
+        return OpenAI(api_key=api_key, base_url=ANTHROPIC_BASE_URL), model
 
     if model in OLLAMA_MODELS:
         return OpenAI(api_key="ollama", base_url=OLLAMA_BASE_URL), OLLAMA_MODELS[model]
