@@ -1,6 +1,8 @@
+import base64
 import re
 import threading
 import time
+from pathlib import Path
 
 import gradio as gr
 import requests
@@ -14,6 +16,22 @@ from agents.bible_scholar import (
 )
 from agents.bible_xref import get_cross_references
 from bible_api.esv_api import get_passage, get_passage_markup, get_passage_text
+
+APP_LOGO = Path(__file__).resolve().parent / "media" / "bible_app_logo.png"
+
+
+def _header_html() -> str:
+    logo_data = base64.b64encode(APP_LOGO.read_bytes()).decode("ascii")
+    return f"""
+<div style="display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;margin:0 0 12px 0;">
+  <img src="data:image/png;base64,{logo_data}" alt="Bible app logo"
+       style="height:72px;width:72px;object-fit:contain;display:block;flex-shrink:0;">
+  <h1 style="margin:0;padding:0;font-size:2rem;font-weight:700;line-height:1.2;">
+    Bible Verse Contextual Study Guide
+  </h1>
+</div>
+"""
+
 
 SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 LOADING_MESSAGES = (
@@ -134,7 +152,7 @@ def generate_study(
 
 def create_app() -> gr.Blocks:
     with gr.Blocks(title="Bible XRef") as app:
-        gr.Markdown("# Bible Verse Contextual Study Guide")
+        gr.HTML(_header_html())
         gr.Markdown("""Enter a Bible verse to generate a contextual study guide.\n\nThe study guide will automatically cross reference several Old and New Testament verses 
                        to provide a comprehensive study of the input verse.\n\nYou can also provide an optional study question to focus the study guide on a specific topic.""")
 
