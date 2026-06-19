@@ -1,7 +1,7 @@
 import base64
+import queue
 import re
 import threading
-import time
 from pathlib import Path
 
 import gradio as gr
@@ -113,41 +113,56 @@ def generate_study(
     user_question: str,
     model: str,
 ):
-    """Generate the textual study guide with animated loading feedback."""
+    """Animate loading, then stream the textual study guide to the UI."""
     if not target_verse_text:
         yield ""
         return
 
-    result: dict[str, str | None] = {"value": None, "error": None}
+    chunk_queue: queue.Queue[str | None] = queue.Queue()
+    errors: list[Exception] = []
 
     def run() -> None:
         try:
-            result["value"] = generate_study_guide(
+            for partial in generate_study_guide(
                 reference,
                 target_verse_text,
                 old_testament_refs,
                 new_testament_refs,
                 user_question,
                 model,
-            )
+            ):
+                chunk_queue.put(partial)
         except Exception as exc:
-            result["error"] = str(exc)
+            errors.append(exc)
+        finally:
+            chunk_queue.put(None)
 
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
 
     frame = 0
-    while thread.is_alive():
-        yield loading_status(frame)
-        frame += 1
-        time.sleep(0.4)
+    streaming = False
+
+    while True:
+        try:
+            partial = chunk_queue.get(timeout=0.4 if not streaming else None)
+        except queue.Empty:
+            yield loading_status(frame)
+            frame += 1
+            continue
+
+        if partial is None:
+            break
+
+        streaming = True
+        yield partial
 
     thread.join()
 
-    if result["error"]:
-        yield f"Could not generate study guide: {result['error']}"
-    else:
-        yield result["value"] or ""
+    if errors:
+        yield f"Could not generate study guide: {errors[0]}"
+    elif not streaming:
+        yield "Could not generate study guide: empty response"
 
 
 def create_app() -> gr.Blocks:

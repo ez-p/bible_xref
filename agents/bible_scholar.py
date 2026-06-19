@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterator
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -185,10 +186,10 @@ def generate_study_guide(
     new_testament_references: str,
     user_question: str | None = None,
     model: str = DEFAULT_MODEL,
-) -> str:
-    """Generate a textual study guide from the target verse and cross references."""
+) -> Iterator[str]:
+    """Generate a textual study guide, yielding partial markdown as it streams."""
     client, model_name = _create_client(model)
-    response = client.chat.completions.create(
+    stream = client.chat.completions.create(
         model=model_name,
         messages=[
             {"role": "system", "content": system_prompt},
@@ -203,10 +204,18 @@ def generate_study_guide(
                 ),
             },
         ],
+        stream=True,
     )
 
-    content = response.choices[0].message.content
+    content_parts: list[str] = []
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta.content
+        if delta:
+            content_parts.append(delta)
+            yield "".join(content_parts)
+
+    content = "".join(content_parts).strip()
     if not content:
         raise ValueError("OpenAI returned an empty response")
-
-    return content.strip()
