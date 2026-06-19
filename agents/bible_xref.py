@@ -58,6 +58,26 @@ def _parse_cross_references_response(content: str) -> str:
     return ", ".join(cleaned)
 
 
+def _request_cross_references(client: OpenAI, model_name: str, prompt: str) -> str:
+    kwargs = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt}],
+        "response_format": {"type": "json_object"},
+    }
+
+    try:
+        response = client.chat.completions.create(**kwargs)
+    except Exception:
+        kwargs.pop("response_format")
+        response = client.chat.completions.create(**kwargs)
+
+    content = response.choices[0].message.content
+    if not content:
+        raise ValueError("OpenAI returned an empty response")
+
+    return content
+
+
 def get_cross_references(
     reference: str,
     testament: Testament | None = None,
@@ -78,13 +98,8 @@ def get_cross_references(
         raise ValueError("Bible verse reference is required")
 
     client, model_name = _create_client(model)
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[{"role": "user", "content": _build_prompt(reference, testament)}],
+    content = _request_cross_references(
+        client, model_name, _build_prompt(reference, testament)
     )
-
-    content = response.choices[0].message.content
-    if not content:
-        raise ValueError("OpenAI returned an empty response")
 
     return _parse_cross_references_response(content)
