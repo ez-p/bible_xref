@@ -64,7 +64,12 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, dict, dict, dict,
     if not re.match(r"^(?:[0-9]+\s+)?[A-Za-z]+ [0-9]+:[0-9]+$", reference):
         return (
             gr.update(
-                value="<p>Invalid reference format. Please use the format 'Book Chapter:Verse' (i.e. John 3:16)</p>",
+                value=(
+                    "<p style=\"color: #c62828; margin: 0;\">"
+                    "Invalid reference format. Please use the format "
+                    "'Book Chapter:Verse' (i.e. John 3:16)"
+                    "</p>"
+                ),
                 label="Verse Text",
             ),
             "",
