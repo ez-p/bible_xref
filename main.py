@@ -12,12 +12,22 @@ from agents.bible_scholar import (
     MODEL_OPTIONS,
     OLLAMA_BASE_URL,
     OLLAMA_MODELS,
+    continue_conversation,
     generate_study_guide,
 )
 from agents.bible_xref import get_cross_references
 from bible_api.esv_api import get_passage, get_passage_markup, get_passage_text
 
 APP_LOGO = Path(__file__).resolve().parent / "media" / "bible_app_logo.png"
+CHAT_HEADER_MD = """## Continue the Conversation
+
+Continue the conversation by asking followup questions"""
+CHAT_SECTION_HIDDEN = "chat-section-hidden"
+CHAT_SECTION_CSS = """
+<style>
+.chat-section-hidden { display: none !important; }
+</style>
+"""
 
 
 def _header_html() -> str:
@@ -48,7 +58,7 @@ def loading_status(frame_index: int) -> str:
     return f"### {spinner} {message}\n\n*This may take a minute...*"
 
 
-def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
+def lookup_verse(reference: str) -> tuple[dict, str, str, str, dict, dict, dict, dict, list, str]:
     """Fetch and display the target verse."""
     label = reference.strip() or "Verse Text"
     if not re.match(r"^(?:[0-9]+\s+)?[A-Za-z]+ [0-9]+:[0-9]+$", reference):
@@ -59,6 +69,8 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
             ),
             "",
             "",
+            "",
+            *hide_chat_section(),
             "",
             "",
         )
@@ -73,6 +85,8 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
             "",
             "",
             "",
+            *hide_chat_section(),
+            "",
             "",
         )
 
@@ -80,6 +94,8 @@ def lookup_verse(reference: str) -> tuple[dict, str, str, str, str]:
         gr.update(value=verse_markup, label=label),
         "Fetching cross references...",
         "Fetching cross references...",
+        "",
+        *hide_chat_section(),
         "",
         target_verse_text,
     )
@@ -103,6 +119,79 @@ def lookup_cross_references(
         old_testament_refs = f"Could not fetch cross references: {exc}"
 
     return new_testament_refs, old_testament_refs, loading_status(0)
+
+
+def _is_study_guide_ready(study_content: str) -> bool:
+    content = (study_content or "").strip()
+    if not content or content.startswith("Could not generate study guide"):
+        return False
+    if "*This may take a minute...*" in content:
+        return False
+    return (
+        "Biblical Study Guide" in content
+        or "## 1. The Target Text" in content
+    )
+
+
+def reveal_chat_section(study_content: str):
+    """Show the follow-up chat section after a study guide is ready."""
+    if _is_study_guide_ready(study_content):
+        return (
+            study_content.strip(),
+            gr.update(value=CHAT_HEADER_MD, elem_classes=[]),
+            gr.update(visible=True),
+            gr.update(value="", interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+        )
+
+    return (
+        "",
+        gr.update(value="", elem_classes=[CHAT_SECTION_HIDDEN]),
+        gr.update(value=[], visible=False),
+        gr.update(value="", interactive=False, elem_classes=[CHAT_SECTION_HIDDEN]),
+        gr.update(interactive=False, elem_classes=[CHAT_SECTION_HIDDEN]),
+    )
+
+
+def hide_chat_section():
+    """Hide and reset the follow-up chat section."""
+    return (
+        gr.update(value="", elem_classes=[CHAT_SECTION_HIDDEN]),
+        gr.update(value=[], visible=False),
+        gr.update(value="", interactive=False, elem_classes=[CHAT_SECTION_HIDDEN]),
+        gr.update(interactive=False, elem_classes=[CHAT_SECTION_HIDDEN]),
+    )
+
+
+def chat_followup(
+    user_message: str,
+    history: list,
+    study_guide: str,
+    model: str,
+) -> tuple[list, str]:
+    """Handle follow-up chat using the generated study guide as context."""
+    history = history or []
+    if not user_message.strip():
+        return history, ""
+
+    if not _is_study_guide_ready(study_guide):
+        history = history + [
+            {"role": "user", "content": user_message.strip()},
+            {
+                "role": "assistant",
+                "content": "Please generate a study guide before continuing the conversation.",
+            },
+        ]
+        return history, ""
+
+    history = history + [{"role": "user", "content": user_message.strip()}]
+    try:
+        reply = continue_conversation(study_guide, history[:-1], user_message, model)
+    except Exception as exc:
+        reply = f"Could not get a response: {exc}"
+
+    history = history + [{"role": "assistant", "content": reply}]
+    return history, ""
 
 
 def generate_study(
@@ -208,13 +297,35 @@ def create_app() -> gr.Blocks:
             interactive=False,
         )
         study_output = gr.Markdown()
+        gr.HTML(CHAT_SECTION_CSS)
+        chat_header = gr.Markdown("", elem_classes=[CHAT_SECTION_HIDDEN])
+        chatbot = gr.Chatbot(height=400, visible=False)
+        chat_input = gr.Textbox(
+            label="Follow-up question",
+            placeholder="Ask a follow-up question about the study guide...",
+            lines=2,
+            interactive=False,
+            elem_classes=[CHAT_SECTION_HIDDEN],
+        )
+        chat_submit_btn = gr.Button(
+            "Send",
+            variant="primary",
+            interactive=False,
+            elem_classes=[CHAT_SECTION_HIDDEN],
+            scale=0,
+        )
         target_text_state = gr.State("")
+        study_guide_state = gr.State("")
+
+        chat_outputs = [chat_header, chatbot, chat_input, chat_submit_btn]
 
         lookup_outputs = [
             verse_output,
             new_testament_output,
             old_testament_output,
             study_output,
+            *chat_outputs,
+            study_guide_state,
             target_text_state,
         ]
         cross_ref_outputs = [
@@ -237,7 +348,16 @@ def create_app() -> gr.Blocks:
                 inputs=[verse_input, target_text_state, model_input],
                 outputs=cross_ref_outputs,
             )
-            return event.then(fn=generate_study, inputs=study_inputs, outputs=study_output)
+            event = event.then(
+                fn=generate_study,
+                inputs=study_inputs,
+                outputs=study_output,
+            )
+            return event.then(
+                fn=reveal_chat_section,
+                inputs=study_output,
+                outputs=[study_guide_state, *chat_outputs],
+            )
 
         submit_event = submit_btn.click(
             fn=lookup_verse, inputs=verse_input, outputs=lookup_outputs
@@ -248,6 +368,12 @@ def create_app() -> gr.Blocks:
             fn=lookup_verse, inputs=verse_input, outputs=lookup_outputs
         )
         wire_submit(submit_event)
+
+        chat_submit_btn.click(
+            chat_followup,
+            inputs=[chat_input, chatbot, study_guide_state, model_input],
+            outputs=[chatbot, chat_input],
+        )
 
     return app
 

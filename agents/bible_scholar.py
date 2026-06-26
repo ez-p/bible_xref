@@ -228,3 +228,76 @@ def generate_study_guide(
     content = "".join(content_parts).strip()
     if not content:
         raise ValueError("OpenAI returned an empty response")
+
+
+followup_system_prompt = """You are an expert Biblical Scholar continuing a conversation about a Textual Study Guide the user has already received.
+
+Use the Biblical Study Guide provided below as your primary historical context. Answer follow-up questions based on that study guide and the Scripture it discusses. Stay consistent with the study guide's analysis and the passages it references.
+
+---
+
+# Biblical Study Guide (Context)
+
+{study_guide}
+"""
+
+
+def _message_content_to_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("text"):
+                parts.append(str(item["text"]))
+            elif hasattr(item, "text"):
+                parts.append(str(item.text))
+            else:
+                parts.append(str(item))
+        return " ".join(parts)
+    return str(content)
+
+
+def _history_to_messages(history: list) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    for message in history:
+        if isinstance(message, dict):
+            role = message.get("role")
+            content = _message_content_to_text(message.get("content", ""))
+        elif hasattr(message, "role") and hasattr(message, "content"):
+            role = message.role
+            content = _message_content_to_text(message.content)
+        else:
+            continue
+
+        if role in {"user", "assistant"} and content.strip():
+            messages.append({"role": role, "content": content.strip()})
+
+    return messages
+
+
+def continue_conversation(
+    study_guide: str,
+    history: list,
+    user_message: str,
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """Answer a follow-up question using the study guide as context."""
+    client, model_name = _create_client(model)
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {
+                "role": "system",
+                "content": followup_system_prompt.format(study_guide=study_guide.strip()),
+            },
+            *_history_to_messages(history),
+            {"role": "user", "content": user_message.strip()},
+        ],
+    )
+
+    content = response.choices[0].message.content
+    if not content:
+        raise ValueError("OpenAI returned an empty response")
+
+    return content.strip()
